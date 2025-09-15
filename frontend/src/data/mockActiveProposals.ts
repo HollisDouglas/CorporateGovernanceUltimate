@@ -17,8 +17,8 @@ export const MOCK_ACTIVE_PROPOSALS: OnChainProposal[] = [
   {
     id: 2,
     proposalType: 2,
-    title: "Approve Q1 2025 Marketing Budget",
-    description: "Proposal to approve $3.2M marketing budget for Q1 2025, focusing on digital advertising, brand partnerships, and customer acquisition campaigns across North American and European markets.",
+    title: "Approve Q4 2026 Marketing Budget",
+    description: "Proposal to approve $3.2M marketing budget for Q4 2026, focusing on digital advertising, brand partnerships, and customer acquisition campaigns across North American and European markets.",
     proposer: "0x8b7c4A9e8D2F3B1c6e5A9B3F7d2E8c4A9e8D2F3B",
     deadline: Math.floor(Date.now() / 1000) + (5 * 24 * 60 * 60), // 5 days from now
     startTime: Math.floor(Date.now() / 1000) - (1 * 24 * 60 * 60), // started 1 day ago

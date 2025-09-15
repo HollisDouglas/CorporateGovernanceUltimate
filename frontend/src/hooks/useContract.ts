@@ -129,15 +129,16 @@ export const useContract = () => {
       // Show loading toast
       const loadingToastId = toast.loading('Preparing transaction...')
 
-      // Check if user is registered shareholder
+      // Check if user is registered shareholder (optional for testing)
       try {
         const [isRegistered] = await contract.contract.getShareholderInfo(wallet.account)
         if (!isRegistered) {
-          toast.error('You must be a registered shareholder to vote', { id: loadingToastId })
+          toast.error('You are not a registered shareholder. Please register first or use the registration button.', { id: loadingToastId })
           return false
         }
       } catch (error) {
-        console.warn('Could not verify shareholder status, proceeding with vote')
+        console.warn('Could not verify shareholder status, proceeding with vote anyway for testing')
+        // Continue with vote even if registration check fails (for testing)
       }
 
       // Estimate gas - use the contract method directly

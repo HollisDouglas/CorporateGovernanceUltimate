@@ -160,6 +160,24 @@ const VotingPage: React.FC = () => {
           <button
             onClick={async () => {
               try {
+                toast.loading('Registering as shareholder...', { id: 'register' })
+                const provider = new ethers.BrowserProvider(window.ethereum!)
+                const signer = await provider.getSigner()
+                const address = await signer.getAddress()
+                await addShareholder(address, 1000, 'Registered Voter')
+                toast.success('Successfully registered as shareholder!', { id: 'register' })
+              } catch (error: any) {
+                console.error('Registration error:', error)
+                toast.error(`Registration failed: ${error.reason || error.message}`, { id: 'register' })
+              }
+            }}
+            className="btn-primary text-xs px-4 py-2 bg-green-600 hover:bg-green-700"
+          >
+            🗳️ Register to Vote
+          </button>
+          <button
+            onClick={async () => {
+              try {
                 toast.loading('Initializing company...', { id: 'init' })
                 const result = await initializeCompany()
                 if (result?.alreadyInitialized) {
@@ -472,6 +490,37 @@ const VotingPage: React.FC = () => {
                   <p className="text-blue-200/80 text-xs">
                     Your vote will be encrypted using FHE technology to ensure complete privacy while maintaining verifiability.
                   </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Registration Notice */}
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-4">
+              <div className="flex items-start space-x-2">
+                <AlertCircle className="w-5 h-5 text-yellow-400 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-yellow-300 text-sm font-semibold mb-1">Shareholder Registration Required</p>
+                  <p className="text-yellow-200/80 text-xs mb-2">
+                    You need to be a registered shareholder to vote. If you're not registered, click the button below.
+                  </p>
+                  <button
+                    onClick={async () => {
+                      try {
+                        toast.loading('Registering as shareholder...', { id: 'register-modal' })
+                        const provider = new ethers.BrowserProvider(window.ethereum!)
+                        const signer = await provider.getSigner()
+                        const address = await signer.getAddress()
+                        await addShareholder(address, 1000, 'Registered Voter')
+                        toast.success('Successfully registered as shareholder!', { id: 'register-modal' })
+                      } catch (error: any) {
+                        console.error('Registration error:', error)
+                        toast.error(`Registration failed: ${error.reason || error.message}`, { id: 'register-modal' })
+                      }
+                    }}
+                    className="bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 px-3 py-1 rounded text-xs font-medium transition-all"
+                  >
+                    Register as Shareholder
+                  </button>
                 </div>
               </div>
             </div>
