@@ -1,24 +1,66 @@
 import React, { useState, useMemo } from 'react'
 import { useWeb3 } from '@/providers/Web3Provider'
-import { FileText, Plus, Wallet, Clock, Users, TrendingUp, Filter, Search, Eye, Vote, ChevronRight } from 'lucide-react'
+import { FileText, Plus, Wallet, Clock, Users, TrendingUp, Search, Eye, Vote, ChevronRight } from 'lucide-react'
 import LoadingSpinner from '@/components/LoadingSpinner'
-import { mockProposals, getVotingProgress, formatTimeRemaining, MockProposal } from '@/data/mockProposals'
+import { useContract, OnChainProposal } from '@/hooks/useContract'
 import { ProposalTypeLabels as PROPOSAL_TYPE_LABELS } from '@/types/web3'
 import { formatAddress } from '@/utils/web3'
 import { Link } from 'react-router-dom'
 
 const ProposalsPage: React.FC = () => {
   const { wallet, contract } = useWeb3()
+  const { proposals, loading, error } = useContract()
   const [selectedTab, setSelectedTab] = useState<'all' | 'active' | 'pending' | 'completed'>('all')
   const [searchTerm, setSearchTerm] = useState('')
 
+  // Helper functions for proposal status
+  const getProposalStatus = (proposal: OnChainProposal): 'active' | 'completed' | 'pending' => {
+    if (!proposal.active || proposal.executed) return 'completed'
+    const now = Math.floor(Date.now() / 1000)
+    if (proposal.deadline < now) return 'completed'
+    return 'active'
+  }
+
+  const getVotingProgress = (proposal: OnChainProposal) => {
+    const totalVotes = proposal.forVotes + proposal.againstVotes
+    if (totalVotes === 0) {
+      return { forPercent: 0, againstPercent: 0, abstainPercent: 0 }
+    }
+    
+    const forPercent = (proposal.forVotes / totalVotes) * 100
+    const againstPercent = (proposal.againstVotes / totalVotes) * 100
+    
+    return {
+      forPercent,
+      againstPercent,
+      abstainPercent: 0 // abstain votes not implemented in current contract
+    }
+  }
+
+  const formatTimeRemaining = (deadline: number) => {
+    const now = Math.floor(Date.now() / 1000)
+    const remaining = deadline - now
+    
+    if (remaining <= 0) return 'Expired'
+    
+    const days = Math.floor(remaining / (24 * 60 * 60))
+    const hours = Math.floor((remaining % (24 * 60 * 60)) / (60 * 60))
+    
+    if (days > 0) return `${days}d ${hours}h remaining`
+    if (hours > 0) return `${hours}h remaining`
+    return 'Less than 1h remaining'
+  }
+
   // Filter proposals based on tab and search
   const filteredProposals = useMemo(() => {
-    let filtered = mockProposals
+    let filtered = proposals
 
     // Filter by status
     if (selectedTab !== 'all') {
-      filtered = filtered.filter(proposal => proposal.status === selectedTab)
+      filtered = filtered.filter(proposal => {
+        const status = getProposalStatus(proposal)
+        return status === selectedTab
+      })
     }
 
     // Filter by search term
@@ -26,12 +68,12 @@ const ProposalsPage: React.FC = () => {
       filtered = filtered.filter(proposal => 
         proposal.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         proposal.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        PROPOSAL_TYPE_LABELS[proposal.type].toLowerCase().includes(searchTerm.toLowerCase())
+        PROPOSAL_TYPE_LABELS[proposal.proposalType as keyof typeof PROPOSAL_TYPE_LABELS].toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
 
     return filtered
-  }, [selectedTab, searchTerm])
+  }, [proposals, selectedTab, searchTerm])
 
   // If wallet is not connected
   if (!wallet.isConnected) {
@@ -49,10 +91,29 @@ const ProposalsPage: React.FC = () => {
   }
 
   // If contract is loading
-  if (contract.isLoading) {
+  if (contract.isLoading || loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <LoadingSpinner size="large" text="Loading proposal data..." />
+      </div>
+    )
+  }
+
+  // If there's an error
+  if (error) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="glass-card p-8 text-center max-w-md mx-auto">
+          <FileText className="h-16 w-16 text-red-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-white mb-4">Error Loading Proposals</h2>
+          <p className="text-gray-300 mb-6">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="btn-primary"
+          >
+            Reload
+          </button>
+        </div>
       </div>
     )
   }
@@ -72,18 +133,18 @@ const ProposalsPage: React.FC = () => {
     )
   }
 
-  const getStatusColor = (proposal: MockProposal) => {
+  const getStatusColor = (proposal: OnChainProposal) => {
     const progress = getVotingProgress(proposal)
-    if (progress.forPercent >= proposal.requiredMajority) return 'text-green-400'
-    if (progress.againstPercent > (100 - proposal.requiredMajority)) return 'text-red-400'
+    if (progress.forPercent >= 50) return 'text-green-400'
+    if (progress.forPercent < 30) return 'text-red-400'
     return 'text-yellow-400'
   }
 
   const tabs = [
-    { id: 'all', label: 'All', count: mockProposals.length },
-    { id: 'active', label: 'Active', count: mockProposals.filter(p => p.status === 'active').length },
-    { id: 'pending', label: 'Pending Review', count: mockProposals.filter(p => p.status === 'pending').length },
-    { id: 'completed', label: 'Completed', count: mockProposals.filter(p => p.status === 'completed').length }
+    { id: 'all', label: 'All', count: proposals.length },
+    { id: 'active', label: 'Active', count: proposals.filter(p => getProposalStatus(p) === 'active').length },
+    { id: 'pending', label: 'Pending Review', count: proposals.filter(p => getProposalStatus(p) === 'pending').length },
+    { id: 'completed', label: 'Completed', count: proposals.filter(p => getProposalStatus(p) === 'completed').length }
   ]
 
   return (
@@ -150,9 +211,9 @@ const ProposalsPage: React.FC = () => {
                     {/* Header */}
                     <div className="flex items-center space-x-3 mb-3">
                       <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm font-medium">
-                        {PROPOSAL_TYPE_LABELS[proposal.type]}
+                        {PROPOSAL_TYPE_LABELS[proposal.proposalType as keyof typeof PROPOSAL_TYPE_LABELS]}
                       </span>
-                      {getStatusBadge(proposal.status)}
+                      {getStatusBadge(getProposalStatus(proposal))}
                       <span className="text-gray-400 text-sm">ID #{proposal.id}</span>
                     </div>
                     
@@ -164,11 +225,11 @@ const ProposalsPage: React.FC = () => {
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                       <div className="flex items-center space-x-2 text-sm text-gray-400">
                         <Users className="h-4 w-4" />
-                        <span>{proposal.totalVotes} votes</span>
+                        <span>{proposal.forVotes + proposal.againstVotes} votes</span>
                       </div>
                       <div className="flex items-center space-x-2 text-sm text-gray-400">
                         <Clock className="h-4 w-4" />
-                        <span>{formatTimeRemaining(proposal.endTime)}</span>
+                        <span>{formatTimeRemaining(proposal.deadline)}</span>
                       </div>
                       <div className="flex items-center space-x-2 text-sm">
                         <TrendingUp className="h-4 w-4 text-gray-400" />
@@ -177,12 +238,12 @@ const ProposalsPage: React.FC = () => {
                         </span>
                       </div>
                       <div className="text-sm text-gray-400">
-                        <span>Creator: {formatAddress(proposal.creator)}</span>
+                        <span>Creator: {formatAddress(proposal.proposer)}</span>
                       </div>
                     </div>
 
                     {/* Progress Bar (only for active proposals) */}
-                    {proposal.status === 'active' && (
+                    {getProposalStatus(proposal) === 'active' && (
                       <div className="w-full bg-gray-700 rounded-full h-2 mb-4">
                         <div className="relative h-full rounded-full overflow-hidden">
                           <div 
@@ -194,13 +255,6 @@ const ProposalsPage: React.FC = () => {
                             style={{ 
                               left: `${progress.forPercent}%`, 
                               width: `${progress.againstPercent}%` 
-                            }}
-                          />
-                          <div 
-                            className="absolute top-0 h-full bg-yellow-500 transition-all duration-300"
-                            style={{ 
-                              left: `${progress.forPercent + progress.againstPercent}%`, 
-                              width: `${progress.abstainPercent}%` 
                             }}
                           />
                         </div>
@@ -217,12 +271,8 @@ const ProposalsPage: React.FC = () => {
                         <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                         <span className="text-gray-300">Against: {proposal.againstVotes}</span>
                       </div>
-                      <div className="flex items-center space-x-1">
-                        <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                        <span className="text-gray-300">Abstain: {proposal.abstainVotes}</span>
-                      </div>
                       <div className="text-gray-400">
-                        Required: {proposal.requiredMajority}%
+                        Required: 50% majority
                       </div>
                     </div>
                   </div>
@@ -234,7 +284,7 @@ const ProposalsPage: React.FC = () => {
                       <span>View Details</span>
                     </button>
                     
-                    {proposal.status === 'active' && (
+                    {getProposalStatus(proposal) === 'active' && (
                       <Link 
                         to={`/vote`}
                         className="btn-primary flex items-center space-x-2 text-sm"
@@ -276,27 +326,29 @@ const ProposalsPage: React.FC = () => {
       {/* Summary Stats */}
       <div className="mt-12 grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="glass-card p-6 text-center">
-          <div className="text-2xl font-bold text-blue-400 mb-1">{mockProposals.length}</div>
+          <div className="text-2xl font-bold text-blue-400 mb-1">{proposals.length}</div>
           <div className="text-gray-300 text-sm">Total Proposals</div>
         </div>
         <div className="glass-card p-6 text-center">
           <div className="text-2xl font-bold text-green-400 mb-1">
-            {mockProposals.filter(p => p.status === 'active').length}
+            {proposals.filter(p => getProposalStatus(p) === 'active').length}
           </div>
           <div className="text-gray-300 text-sm">Active Proposals</div>
         </div>
         <div className="glass-card p-6 text-center">
           <div className="text-2xl font-bold text-purple-400 mb-1">
-            {mockProposals.reduce((acc, p) => acc + p.totalVotes, 0)}
+            {proposals.reduce((acc, p) => acc + p.forVotes + p.againstVotes, 0)}
           </div>
           <div className="text-gray-300 text-sm">Total Votes Cast</div>
         </div>
         <div className="glass-card p-6 text-center">
           <div className="text-2xl font-bold text-yellow-400 mb-1">
-            {Math.round(mockProposals.filter(p => p.status === 'active').reduce((acc, p) => {
-              const progress = getVotingProgress(p)
-              return acc + progress.forPercent
-            }, 0) / Math.max(mockProposals.filter(p => p.status === 'active').length, 1))}%
+            {proposals.filter(p => getProposalStatus(p) === 'active').length > 0 ? 
+              Math.round(proposals.filter(p => getProposalStatus(p) === 'active').reduce((acc, p) => {
+                const progress = getVotingProgress(p)
+                return acc + progress.forPercent
+              }, 0) / proposals.filter(p => getProposalStatus(p) === 'active').length) : 0
+            }%
           </div>
           <div className="text-gray-300 text-sm">Avg. Approval Rate</div>
         </div>
