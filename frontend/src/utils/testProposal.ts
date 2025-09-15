@@ -1,5 +1,6 @@
 import { ethers } from 'ethers'
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from './constants'
+import type { PresetProposal } from '@/data/presetProposals'
 
 export const createTestProposal = async () => {
   try {
@@ -16,11 +17,45 @@ export const createTestProposal = async () => {
     console.log('Contract address:', CONTRACT_ADDRESS)
     console.log('Signer address:', await signer.getAddress())
 
-    // Create a test proposal - using correct parameter order
+    // Create a test proposal
     const tx = await (contract as any).createProposal(
       1, // _type: 1 = Board Election  
       "Test Proposal: Elect New Board Member", // _title
       7  // _days: duration in days
+    )
+
+    console.log('Transaction sent:', tx.hash)
+    
+    const receipt = await tx.wait()
+    console.log('Transaction confirmed in block:', receipt.blockNumber)
+    
+    return receipt
+  } catch (error: any) {
+    console.error('Error creating test proposal:', error)
+    throw error
+  }
+}
+
+export const createPresetProposal = async (preset: PresetProposal) => {
+  try {
+    // Get provider and signer
+    if (!window.ethereum) {
+      throw new Error('MetaMask not installed')
+    }
+
+    const provider = new ethers.BrowserProvider(window.ethereum)
+    const signer = await provider.getSigner()
+    const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer)
+
+    console.log('Creating test proposal...')
+    console.log('Contract address:', CONTRACT_ADDRESS)
+    console.log('Signer address:', await signer.getAddress())
+
+    // Create preset proposal with specified parameters
+    const tx = await (contract as any).createProposal(
+      preset.type, // _type: proposal type
+      preset.title, // _title: proposal title
+      preset.duration  // _days: duration in days
     )
 
     console.log('Transaction sent:', tx.hash)

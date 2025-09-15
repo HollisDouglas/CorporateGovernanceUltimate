@@ -5,7 +5,10 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import { useContract, OnChainProposal } from '@/hooks/useContract'
 import { ProposalTypeLabels as PROPOSAL_TYPE_LABELS } from '@/types/web3'
 import { formatAddress } from '@/utils/web3'
+import { PRESET_PROPOSALS } from '@/data/presetProposals'
+import { createPresetProposal } from '@/utils/testProposal'
 import { Link } from 'react-router-dom'
+import toast from 'react-hot-toast'
 
 const ProposalsPage: React.FC = () => {
   const { wallet, contract } = useWeb3()
@@ -159,10 +162,12 @@ const ProposalsPage: React.FC = () => {
           </div>
         </div>
         
-        <button className="btn-primary flex items-center space-x-2">
-          <Plus className="h-4 w-4" />
-          <span>Create Proposal</span>
-        </button>
+        <div className="flex space-x-2">
+          <button className="btn-primary flex items-center space-x-2">
+            <Plus className="h-4 w-4" />
+            <span>Create Custom</span>
+          </button>
+        </div>
       </div>
 
       {/* Search and Filters */}
@@ -196,6 +201,47 @@ const ProposalsPage: React.FC = () => {
               </button>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Preset Proposals */}
+      <div className="glass-card p-6 mb-8">
+        <h2 className="text-2xl font-bold text-white mb-6">Quick Create Proposals</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {PRESET_PROPOSALS.map((preset) => (
+            <div key={preset.id} className="bg-white/5 border border-white/10 rounded-lg p-6 hover:bg-white/10 transition-all">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3 mb-2">
+                    <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs">
+                      Type {preset.type}
+                    </span>
+                    <span className="text-gray-400 text-xs">{preset.duration} days</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-white mb-2">{preset.title}</h3>
+                  <p className="text-gray-300 text-sm line-clamp-3">{preset.description}</p>
+                </div>
+              </div>
+              
+              <button
+                onClick={async () => {
+                  try {
+                    toast.loading(`Creating: ${preset.title}...`, { id: `create-${preset.id}` })
+                    await createPresetProposal(preset)
+                    toast.success('Proposal created successfully!', { id: `create-${preset.id}` })
+                    setTimeout(() => window.location.reload(), 1000)
+                  } catch (error: any) {
+                    console.error('Create preset proposal error:', error)
+                    toast.error(`Failed: ${error.reason || error.message}`, { id: `create-${preset.id}` })
+                  }
+                }}
+                className="w-full btn-primary text-sm py-2 flex items-center justify-center space-x-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Create This Proposal</span>
+              </button>
+            </div>
+          ))}
         </div>
       </div>
 

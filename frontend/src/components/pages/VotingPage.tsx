@@ -5,7 +5,9 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import { useContract, OnChainProposal } from '@/hooks/useContract'
 import { ProposalTypeLabels as PROPOSAL_TYPE_LABELS, VoteChoice } from '@/types/web3'
 import { formatAddress } from '@/utils/web3'
-import { createTestProposal, initializeCompany, addBoardMember, addShareholder } from '@/utils/testProposal'
+import { createTestProposal, createPresetProposal, initializeCompany, addBoardMember, addShareholder } from '@/utils/testProposal'
+import { PRESET_PROPOSALS, VOTE_OPTIONS } from '@/data/presetProposals'
+import { MOCK_ACTIVE_PROPOSALS } from '@/data/mockActiveProposals'
 import { ethers } from 'ethers'
 import toast from 'react-hot-toast'
 
@@ -16,7 +18,9 @@ const VotingPage: React.FC = () => {
   const [votingInProgress, setVotingInProgress] = useState<number | null>(null)
   const [showVoteModal, setShowVoteModal] = useState(false)
 
-  const activeProposals = getActiveProposals()
+  const onChainProposals = getActiveProposals()
+  // Combine on-chain proposals with mock active proposals for testing
+  const activeProposals = [...onChainProposals, ...MOCK_ACTIVE_PROPOSALS]
 
   // If wallet is not connected
   if (!wallet.isConnected) {
@@ -77,9 +81,11 @@ const VotingPage: React.FC = () => {
     
     try {
       // Cast real vote on blockchain using useContract hook
+      // Even mock proposals will trigger real blockchain transactions
       const success = await castVote(proposalId, voteChoice)
       
       if (success) {
+        toast.success(`Successfully voted on proposal #${proposalId}!`)
         setShowVoteModal(false)
         setSelectedProposal(null)
       }
@@ -249,13 +255,48 @@ const VotingPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Active Proposals */}
+      {/* Preset Proposals for Testing */}
+      <div className="glass-card p-6 mb-8">
+        <h2 className="text-2xl font-bold text-white mb-6">Quick Create Proposals (Test Real Transactions)</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {PRESET_PROPOSALS.map((preset) => (
+            <div key={preset.id} className="bg-white/5 border border-white/10 rounded-lg p-4">
+              <h3 className="text-white font-semibold mb-2 text-sm">{preset.title}</h3>
+              <p className="text-gray-300 text-xs mb-3 line-clamp-2">{preset.description}</p>
+              <div className="flex justify-between items-center text-xs text-gray-400 mb-3">
+                <span>Type: {preset.type}</span>
+                <span>{preset.duration} days</span>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    toast.loading(`Creating: ${preset.title}...`, { id: `create-${preset.id}` })
+                    await createPresetProposal(preset)
+                    toast.success('Proposal created! Refresh to see it.', { id: `create-${preset.id}` })
+                    setTimeout(() => window.location.reload(), 1000)
+                  } catch (error: any) {
+                    console.error('Create preset proposal error:', error)
+                    toast.error(`Failed: ${error.reason || error.message}`, { id: `create-${preset.id}` })
+                  }
+                }}
+                className="w-full btn-primary text-xs py-2"
+              >
+                Create This Proposal
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Active Proposals - Real + Mock for Testing */}
       {activeProposals.length > 0 ? (
         <div className="space-y-6">
           <h2 className="text-2xl font-bold text-white">Active Proposals ({activeProposals.length})</h2>
+          <p className="text-gray-300 text-sm">Click "Vote Now" on any proposal to test real MetaMask transactions</p>
           
           {activeProposals.map((proposal) => {
             const progress = getVotingProgress(proposal)
+            const isMockProposal = MOCK_ACTIVE_PROPOSALS.find(mock => mock.id === proposal.id)
             return (
               <div key={proposal.id} className="glass-card p-6 hover:bg-white/5 transition-all duration-200">
                 <div className="flex items-start justify-between mb-4">
@@ -264,6 +305,11 @@ const VotingPage: React.FC = () => {
                       <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm font-medium">
                         {PROPOSAL_TYPE_LABELS[proposal.proposalType as keyof typeof PROPOSAL_TYPE_LABELS]}
                       </span>
+                      {isMockProposal && (
+                        <span className="px-2 py-1 bg-green-500/20 text-green-300 rounded text-xs border border-green-500/30">
+                          Test Proposal - Real Transactions
+                        </span>
+                      )}
                       <span className="text-gray-400 text-sm">ID #{proposal.id}</span>
                     </div>
                     
@@ -370,6 +416,18 @@ const VotingPage: React.FC = () => {
               <h3 className="text-lg font-semibold text-white mb-2">{selectedProposal.title}</h3>
               <p className="text-gray-300 text-sm mb-4">{selectedProposal.description}</p>
               
+              {MOCK_ACTIVE_PROPOSALS.find(mock => mock.id === selectedProposal.id) && (
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 mb-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                    <p className="text-green-300 text-sm font-medium">Test Proposal</p>
+                  </div>
+                  <p className="text-green-200/80 text-xs mt-1">
+                    This is a test proposal. Your vote will trigger a real MetaMask transaction on Sepolia testnet.
+                  </p>
+                </div>
+              )}
+              
               <div className="text-sm text-gray-400">
                 <div>Proposal Type: {PROPOSAL_TYPE_LABELS[selectedProposal.proposalType as keyof typeof PROPOSAL_TYPE_LABELS]}</div>
                 <div>Total votes: {selectedProposal.forVotes + selectedProposal.againstVotes}</div>
@@ -379,32 +437,31 @@ const VotingPage: React.FC = () => {
             </div>
             
             <div className="space-y-3 mb-6">
-              <button
-                onClick={() => handleVote(selectedProposal.id, VoteChoice.FOR)}
-                disabled={votingInProgress !== null}
-                className="w-full bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 text-green-300 py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
-              >
-                <CheckCircle className="h-5 w-5" />
-                <span>Vote For</span>
-              </button>
-              
-              <button
-                onClick={() => handleVote(selectedProposal.id, VoteChoice.AGAINST)}
-                disabled={votingInProgress !== null}
-                className="w-full bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-300 py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
-              >
-                <XCircle className="h-5 w-5" />
-                <span>Vote Against</span>
-              </button>
-              
-              <button
-                onClick={() => handleVote(selectedProposal.id, VoteChoice.ABSTAIN)}
-                disabled={votingInProgress !== null}
-                className="w-full bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/50 text-yellow-300 py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
-              >
-                <MinusCircle className="h-5 w-5" />
-                <span>Abstain</span>
-              </button>
+              {VOTE_OPTIONS.map((option) => {
+                const IconComponent = option.value === 1 ? CheckCircle : option.value === 2 ? XCircle : MinusCircle
+                const colorClasses = {
+                  green: 'bg-green-500/20 hover:bg-green-500/30 border-green-500/50 text-green-300',
+                  red: 'bg-red-500/20 hover:bg-red-500/30 border-red-500/50 text-red-300',
+                  yellow: 'bg-yellow-500/20 hover:bg-yellow-500/30 border-yellow-500/50 text-yellow-300'
+                }
+                
+                return (
+                  <button
+                    key={option.id}
+                    onClick={() => handleVote(selectedProposal.id, option.value)}
+                    disabled={votingInProgress !== null}
+                    className={`w-full border py-3 px-4 rounded-lg font-semibold transition-all flex items-center justify-center space-x-2 disabled:opacity-50 ${
+                      colorClasses[option.color as keyof typeof colorClasses]
+                    }`}
+                  >
+                    <IconComponent className="h-5 w-5" />
+                    <div className="text-left">
+                      <div>{option.label}</div>
+                      <div className="text-xs opacity-75">{option.description}</div>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
             
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 mb-4">
