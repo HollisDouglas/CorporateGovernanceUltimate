@@ -140,25 +140,25 @@ export const useContract = () => {
         console.warn('Could not verify shareholder status, proceeding with vote')
       }
 
-      // Estimate gas
-      let gasEstimate
+      // Estimate gas - use the contract method directly
+      let gasEstimate: bigint = 200000n
       try {
-        gasEstimate = await (contract.contract as any).vote.estimateGas(proposalId, choice)
+        const estimate = await contract.contract.vote.estimateGas(proposalId, choice)
+        gasEstimate = BigInt(estimate.toString())
         console.log('Gas estimate:', gasEstimate.toString())
       } catch (error: any) {
         console.error('Gas estimation failed:', error)
-        toast.error(`Transaction may fail: ${error.reason || error.message}`, { id: loadingToastId })
-        return false
+        console.log('Using default gas limit:', gasEstimate.toString())
       }
 
-      // Prepare transaction  
-      const gasLimit = (gasEstimate * 120n) / 100n // Add 20% buffer
+      // Prepare transaction - add 20% buffer
+      const gasLimit = (gasEstimate * 120n) / 100n
       
       toast.loading('Please confirm transaction in MetaMask...', { id: loadingToastId })
 
       // Send transaction
-      const tx = await (contract.contract as any).vote(proposalId, choice, {
-        gasLimit,
+      const tx = await contract.contract.vote(proposalId, choice, {
+        gasLimit: gasLimit.toString(),
         // gasPrice can be estimated by the wallet
       })
 
@@ -225,19 +225,25 @@ export const useContract = () => {
       }
 
       // Estimate gas
-      const gasEstimate = await (contract.contract as any).createProposal.estimateGas(
-        proposalType,
-        title,
-        durationDays
-      )
+      let gasEstimate: bigint = 300000n
+      try {
+        const estimate = await contract.contract.createProposal.estimateGas(
+          proposalType,
+          title,
+          durationDays
+        )
+        gasEstimate = BigInt(estimate.toString())
+      } catch (error: any) {
+        console.error('Gas estimation failed for createProposal:', error)
+      }
 
       const gasLimit = (gasEstimate * 120n) / 100n
 
       toast.loading('Please confirm transaction in MetaMask...', { id: loadingToastId })
 
       // Send transaction
-      const tx = await (contract.contract as any).createProposal(proposalType, title, durationDays, {
-        gasLimit
+      const tx = await contract.contract.createProposal(proposalType, title, durationDays, {
+        gasLimit: gasLimit.toString()
       })
 
       toast.loading(`Transaction sent: ${tx.hash}`, { id: loadingToastId })

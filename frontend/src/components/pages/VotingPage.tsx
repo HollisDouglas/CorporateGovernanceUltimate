@@ -5,7 +5,7 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import { useContract, OnChainProposal } from '@/hooks/useContract'
 import { ProposalTypeLabels as PROPOSAL_TYPE_LABELS, VoteChoice } from '@/types/web3'
 import { formatAddress } from '@/utils/web3'
-import { createTestProposal, initializeCompany, addBoardMember } from '@/utils/testProposal'
+import { createTestProposal, initializeCompany, addBoardMember, addShareholder } from '@/utils/testProposal'
 import { ethers } from 'ethers'
 import toast from 'react-hot-toast'
 
@@ -150,14 +150,20 @@ const VotingPage: React.FC = () => {
         </div>
         
         {/* Test Controls */}
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={async () => {
               try {
-                await initializeCompany()
-                toast.success('Company initialized!')
+                toast.loading('Initializing company...', { id: 'init' })
+                const result = await initializeCompany()
+                if (result?.alreadyInitialized) {
+                  toast.success('Company already initialized!', { id: 'init' })
+                } else {
+                  toast.success('Company initialized successfully!', { id: 'init' })
+                }
               } catch (error: any) {
-                toast.error(`Failed: ${error.message}`)
+                console.error('Initialize error:', error)
+                toast.error(`Failed to initialize: ${error.reason || error.message}`, { id: 'init' })
               }
             }}
             className="btn-secondary text-xs px-3 py-1"
@@ -167,13 +173,37 @@ const VotingPage: React.FC = () => {
           <button
             onClick={async () => {
               try {
+                toast.loading('Adding as shareholder...', { id: 'shareholder' })
                 const provider = new ethers.BrowserProvider(window.ethereum!)
                 const signer = await provider.getSigner()
                 const address = await signer.getAddress()
-                await addBoardMember(address)
-                toast.success('Board member added!')
+                await addShareholder(address, 1000, 'Test User')
+                toast.success('Shareholder added successfully!', { id: 'shareholder' })
               } catch (error: any) {
-                toast.error(`Failed: ${error.message}`)
+                console.error('Shareholder error:', error)
+                toast.error(`Failed to add shareholder: ${error.reason || error.message}`, { id: 'shareholder' })
+              }
+            }}
+            className="btn-secondary text-xs px-3 py-1"
+          >
+            Add Self as Shareholder
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                toast.loading('Adding board member...', { id: 'board' })
+                const provider = new ethers.BrowserProvider(window.ethereum!)
+                const signer = await provider.getSigner()
+                const address = await signer.getAddress()
+                const result = await addBoardMember(address)
+                if (result?.alreadyBoardMember) {
+                  toast.success('Already a board member!', { id: 'board' })
+                } else {
+                  toast.success('Board member added successfully!', { id: 'board' })
+                }
+              } catch (error: any) {
+                console.error('Board member error:', error)
+                toast.error(`Failed to add board member: ${error.reason || error.message}`, { id: 'board' })
               }
             }}
             className="btn-secondary text-xs px-3 py-1"
@@ -183,11 +213,14 @@ const VotingPage: React.FC = () => {
           <button
             onClick={async () => {
               try {
+                toast.loading('Creating test proposal...', { id: 'proposal' })
                 await createTestProposal()
-                toast.success('Test proposal created!')
-                window.location.reload()
+                toast.success('Test proposal created successfully!', { id: 'proposal' })
+                // Refresh the page to load new proposal
+                setTimeout(() => window.location.reload(), 1000)
               } catch (error: any) {
-                toast.error(`Failed: ${error.message}`)
+                console.error('Create proposal error:', error)
+                toast.error(`Failed to create proposal: ${error.reason || error.message}`, { id: 'proposal' })
               }
             }}
             className="btn-secondary text-xs px-3 py-1"
