@@ -3,7 +3,7 @@ import { useWeb3 } from '@/providers/Web3Provider'
 import { Vote, AlertCircle, Wallet, Clock, Users, TrendingUp, CheckCircle, XCircle, MinusCircle, ChevronRight } from 'lucide-react'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { getActiveProposals, getVotingProgress, formatTimeRemaining, MockProposal } from '@/data/mockProposals'
-import { PROPOSAL_TYPE_LABELS, VoteChoice, VOTE_CHOICE_LABELS } from '@/types/web3'
+import { ProposalTypeLabels as PROPOSAL_TYPE_LABELS, VoteChoice, VoteChoiceLabels as VOTE_CHOICE_LABELS } from '@/types/web3'
 import { formatAddress } from '@/utils/web3'
 import toast from 'react-hot-toast'
 
